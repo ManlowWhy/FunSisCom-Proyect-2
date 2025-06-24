@@ -112,7 +112,9 @@ def tono_game_over():
     reproducir_melodia(melodia_game_over)
 
 def enviar_display(valor):
-    pat = segmentos.get(valor % 16, 0) & 0x7F
+    if valor > 15:
+        valor = 15  # evita errores por valores no representables
+    pat = segmentos.get(valor, 0) & 0x7F
     for i in range(7, -1, -1):
         bit = (pat >> i) & 1
         data.value(bit)
@@ -120,6 +122,7 @@ def enviar_display(valor):
         sleep_ms(1)
         clock.value(0)
         sleep_ms(1)
+
 
 
 # ANIMACIONES Y ERROR 
