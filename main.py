@@ -134,12 +134,11 @@ def animacion_set(puntaje):
     for _ in range(3):
         for led in leds:
             led.value(1)
-            enviar_display(puntaje)
             sleep_ms(70)
             led.value(0)
+    enviar_display(puntaje)  
 
-    # Asegura que el display termine mostrando el puntaje
-    enviar_display(puntaje)
+
 
 def mostrar_error():
     # Inicia la melodía de “game over” en segundo plano
