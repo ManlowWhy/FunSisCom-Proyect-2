@@ -3,6 +3,9 @@ from utime import sleep_ms, ticks_ms
 import random
 import time
 import _thread
+import json
+import socket
+import network
 
 #PINES Se quedo enganchado 2 botones del switch pero se puede probar funcionalidad de niveles intercambiando los Pines al 0 segun el nivel que se quiera comprobar
 leds = [Pin(i, Pin.OUT) for i in (3, 4, 5, 6)]
@@ -21,6 +24,12 @@ SPEED_FACTOR = 1.0
 # Pines para display 7 segmentos
 data  = Pin(15, Pin.OUT)
 clock = Pin(16, Pin.OUT)
+
+pin_A = Pin(12, Pin.OUT)
+pin_B = Pin(13, Pin.OUT)
+pin_C = Pin(14, Pin.OUT)
+pin_EN = Pin(17, Pin.OUT)
+
 
 # Patrones 7 segmentos (0-F)
 segmentos = {
@@ -83,6 +92,40 @@ melodia_5_aciertos = [
 ]
 
 
+
+    
+def enviar_datos_wifi(set_count, jugador="Olman", modo="PRINCIPIANTE"):
+    try:
+        s = socket.socket()
+        s.settimeout(2)  # evita bloqueo indefinido
+        s.connect(("192.168.2.100", 8001))
+        print("🔌 Conectado al servidor")
+        mensaje = {
+            "jugador": jugador,
+            "set_count": set_count,
+            "modo": modo
+        }
+        s.send(json.dumps(mensaje).encode())
+        print("📤 Enviado:", mensaje)
+        respuesta = s.recv(1024).decode()
+        print("📥 Respuesta:", respuesta)
+        s.close()
+    except Exception as e:
+        print("❌ Error Wi-Fi:", repr(e))
+
+        
+def connectToWifi():
+    ssid = "Apartamento 3_2.4"
+    password = "mdal2403"
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    wlan.connect(ssid, password)
+    print("Conectando a Wi-Fi...")
+    while not wlan.isconnected():
+        sleep_ms(500)
+    print("✅ Wi-Fi conectado. IP:", wlan.ifconfig()[0])
+
+
 #FUNCIONES DE SONIDO
 def play_note(note: str, duration: float, volume: int = DEFAULT_VOLUME):
     freq = notas.get(note, 0)
@@ -93,7 +136,9 @@ def play_note(note: str, duration: float, volume: int = DEFAULT_VOLUME):
         buzzer.duty_u16(volume)
     time.sleep(duration)
     buzzer.duty_u16(0)
-    time.sleep(0.015)  
+    time.sleep(0.015)
+
+
 
 def reproducir_melodia(melodia, speed_factor=SPEED_FACTOR):
     for note, dur in melodia:
@@ -122,6 +167,18 @@ def enviar_display(valor):
         sleep_ms(1)
         clock.value(0)
         sleep_ms(1)
+def enviar_a_circuito_exceso3(valor):
+    entrada = valor & 0b111
+    A = (entrada >> 2) & 1
+    B = (entrada >> 1) & 1
+    C = entrada & 1
+    EN = random.randint(0, 1)
+    pin_A.value(A)
+    pin_B.value(B)
+    pin_C.value(C)
+    pin_EN.value(EN)
+    print(f"→ Exceso3: A={A}, B={B}, C={C}, EN={EN}")
+
 
 
 
@@ -136,7 +193,9 @@ def animacion_set(puntaje):
             led.value(1)
             sleep_ms(70)
             led.value(0)
-    enviar_display(puntaje)  
+    enviar_display(puntaje)
+    
+
 
 
 
@@ -226,6 +285,7 @@ def revisar_nivel():
 
 # PRINCIPAL 
 tono_inicio()
+connectToWifi()
 
 while True:
     # Reinicio al comenzar nueva partida
@@ -248,10 +308,10 @@ while True:
 
         # Patrón de LEDs
         if modo == "LEYENDA":
-          cantidad_leds = random.choice([1, 2])
-          expected = set()
-          while len(expected) < cantidad_leds:
-              expected.add(random.randint(0, 3))
+            cantidad_leds = random.choice([1, 2])
+            expected = set()
+            while len(expected) < cantidad_leds:
+                expected.add(random.randint(0, 3))
         else:
             expected = {random.randint(0, 3)}
 
@@ -314,16 +374,19 @@ while True:
         print("Aciertos totales:", total_aciertos)
 
         # Verificamos si completaste un nuevo set
-        if total_aciertos % tipo_set == 0:
-          set_count = total_aciertos // tipo_set
-          print(f"→ Nuevo set completado. Sets: {set_count}")
-          enviar_display(set_count)   
-          animacion_set(set_count) 
-          sleep_ms(50)
-#Esperamos botón RESET
+        if tipo_set > 0 and total_aciertos % tipo_set == 0 and total_aciertos != 0:
+            set_count = total_aciertos // tipo_set
+            print(f"→ Nuevo set completado. Sets: {set_count}")
+            enviar_a_circuito_exceso3(set_count)
+            animacion_set(set_count)
+            enviar_display(set_count)
+            enviar_a_circuito_exceso3(set_count)
+            enviar_datos_wifi(set_count, jugador="Olman", modo=modo)
+            sleep_ms(50)
+
+    # Esperamos botón RESET
     print("→ Esperando reset...")
     while not boton_reset.value():
         sleep_ms(50)
-
     print("→ Reiniciando juego...")
     sleep_ms(2000)
